@@ -9,8 +9,8 @@ Due: 2/10/2016
 
 /* Include Files */
 #include <stdio.h>
-#include <string.h>
-#include <strings.h>
+//#include <string.h>
+//#include <strings.h>
 
 int getword(char *w)
 {
