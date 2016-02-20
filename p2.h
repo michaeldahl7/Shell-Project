@@ -4,4 +4,4 @@
 #define MAXITEM 100 /* Max number of words per line */
 
 
-void parse(char *w);
+void parse();
