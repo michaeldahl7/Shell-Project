@@ -1,0 +1,564 @@
+                                Assignment 8
+                                    CS220
+
+THIS WAS AN OLD ASSIGNMENT FOR CS220 (the C&UNIX class).
+IT IS NOT A REQUIRED ASSIGNMENT FOR CS570!
+I am making it available for those who wish to have a tutorial about debuggers.
+Read about how to debug the errors.c file... if you think it may be useful.
+
+
+This assignment is intended to familiarize you with dbx and lint (Wang,
+Sections 10.6 and 10.7).  You will first work with the file ~masc0000/errors.c,
+emulate my example below, and then debug the suite of .c files contained
+in ~masc0000/a8.tar .  Begin by reading the first part of Section 10.6 of Wang,
+"Debugging with dbx" (page 317), create a directory called ~/As8, and
+copy ~masc0000/errors.c to ~/As8 .
+
+Whether you use cc or gcc, dbx can't do anything useful unless you use the -g
+compilation flag.  This flag tells the compiler to leave information regarding
+the names of variables, functions, and the file and line numbers from the
+source code in a symbol table contained in the a.out file.  The UNIX command
+% strip a.out
+removes this information and creates a smaller executable file, but dbx can no
+longer use this particular a.out file for debugging purposes.  Create the
+executable file with cc and the -g flag, but don't strip it.
+
+Before running dbx, make sure you remove any core files in your current
+directory, or you could confuse dbx (you can use dbx to look at the carcass
+of your last program crash; a core file is the embalmed remains of a crash).
+It never hurts to delete these (unless you plan to dissect them with dbx);
+% rm ./core
+can save you lots of space, since these files tend to be big.
+
+While it's not required for full credit, if you want extra practice, you can try
+the Wang examples, using the source under ~masc0000/Wang .  Our version of dbx
+is slightly different than the one illustrated in Wang, so if you try to
+emulate the Wang example on page 321 or 325, expect some differences.
+The first command they list is:
+(dbx) list lower     (display source listing around function lower)
+... and the only part that you actually type is "list lower", of course.
+The next command, "trace read", used deprecated syntax, and dbx will
+inform you that in the future you should instead type "trace in read".
+(since read.o was not compiled with the -g flag, expect a small complaint
+from dbx at this point)
+Our version of dbx numbers the constraints differently, so you'll have
+to say "delete 5" rather than "delete 4" to get the behavior on page 322.
+The files Wang discusses can be found in ~masc0000/Wang/chap.11/lowercase.c
+and ~masc0000/Wang/chap.10/sample.c .
+
+Get the file ~masc0000/errors.c, and put it in ~/As8.
+
+When you start up dbx, you will probably want to follow the advice
+given about suppressing startup messages, e.g.,
+
+cat > ~/.dbxrc
+dbxenv suppress_startup_message 5.0
+^D
+
+To emulate the example below, type the stuff that follows the "%" prompts and
+the "(dbx)" prompts.  I've interspersed comments about what is going on in
+the 'script' that follows.
+
+% cd ~/As8
+% cc -g errors.c
+% dbx a.out
+Reading a.out
+Reading ld.so.1
+Reading libc.so.1
+Reading libdl.so.1
+Reading libc_psr.so.1
+(dbx) list main
+    1   main(){
+    2   int i = 5;
+    3   char c[4] = "ab"; /* proper syntax is:  char c[4] = {'a', 'b', '\0'}; */
+    4   int j = 3;
+    5   printf("%s, %d, %d\n", c, i, j);
+    6   strcat(c, "cde");
+    7   c[-1] = 'd';
+    8   printf("%s, %d, %d\n", c, i, j);
+    9   }
+
+"(dbx)" is the prompt that shows you're talking to dbx.
+"list" will show portions of your source code.  Some of the options are:
+list				(lists the next 10 lines)
+list 3,5			(lists lines 3, 4, and 5)
+list some-function-name		(lists an entire function, as shown above)
+If it says something like 'no source lines for "main"', then you probably
+did not compile your program with the '-g' option.
+
+(dbx) whatis c
+char c[4];
+
+"whatis" will parrot the definition of a given variable name (if you are
+currently inside a subfunction which has it's own local variable called "c",
+then "whatis c" will give you the definition of the local variable, of course).
+
+(dbx) run
+Running: a.out 
+ab, 5, 3
+abcde, 1694498821, 100
+execution completed, exit code is 1
+
+"run" runs the program.  Since we have not set any constraints, you get the
+normal execution without any halting points.  The principle use of the debugger
+is to get the program to stop so you can investigate values in mid-execution,
+or at least to report on values.  One of the constraints can be
+"trace changes to a variable":
+
+(dbx) trace change j
+(2) trace change j -in main
+(dbx) run
+Running: a.out 
+initially (at line "errors.c":2): j = -268437948
+after line "errors.c":4: j = 3
+ab, 5, 3
+after line "errors.c":7: j = 100
+abcde, 1694498821, 100
+execution completed, exit code is 1
+
+"trace change j" traces the changes to variable j. When space is first allocated
+on the stack for the integer j, the bit pattern that happened to be in that
+location (when interpreted as an integer) was -268437948.  After it was
+initialized, the value was 3.  dbx also reports that the value of j
+mysteriously changes to 100 on line 7.  NOTE: With the compiler you are using
+for this class, j may be initialized to some other number rather
+than to -268437948.
+
+(dbx) trace change i
+(3) trace change i -in main
+
+"trace change i" produces the output "(3) trace change i"; the (3) means this
+is constraint number 3.  Try:
+
+(dbx) run
+
+...and note that it reports the changes to both i and j, since both constraints
+are currently active [NOTE: "run" produces output, but I will no longer be
+reproducing everything that dbx says to us; try it yourself to see just what
+happens].  Constraints can be removed by referring to their number:
+
+(dbx) status
+(2) trace change j -in main
+(3) trace change i -in main
+(dbx) delete 2
+(dbx) run
+
+...in this run, dbx only reports changes to i, since the directive to trace j
+has been deleted.  Note that i gets radically changed after execution of line 6.
+This ought to seem mysterious, since "i" is not mentioned in line 6 at all.
+
+dbx will allow you to step through the execution of the program a line at a
+time.  First, you have to convince dbx to stop before the end of the program.
+Here, we tell it to stop as soon as it enters main():
+
+(dbx) stop in main
+(4) stop in main
+(dbx) run
+Running: a.out 
+stopped in main at line 2 in file "errors.c"
+    2   int i = 5;
+initially (at line "errors.c":2): i = -536876000
+(dbx) print j, c, i
+j = 0
+c = "пян¤"
+i = -536876000
+
+When dbx says "stopped in main at line 2", it has not yet executed line 2 (so
+"print i" reports "i = -536874608), since we have not executed line 2 which will
+set i to 5).  In C, the variable "c" is actually the address of the c array,
+but dbx prints out the contents rather than the address.  Don't expect
+variables on the stack to be initialized to zero; note that i or j may currently
+have a crazy (random) value, and that this value may be different from the one
+it had in a previous run.  When you run this program, "c" could easily contain
+different garbage from the nonsense string shown in the run above.
+
+(dbx) step
+(dbx) print j, c, i
+
+"step" runs through your source code a line at a time.  Try doing the "step"
+and "print" instructions over and over, and watch the changes to the variables.
+(If you are on an Xterminal, using buttons 1 and 2 to cut and paste will save
+a lot of tedious typing.  You can type "step; print j, c, i" all on one line.)
+Note that at one point, the output will be:
+
+(dbx) step
+stopped in main at line 7 in file "errors.c"
+    7   c[-1] = 'd';
+(dbx) print j, c, i
+j = 3
+c = "abcd"
+i = 1694498821
+
+The next printf() of c will show "abcde", while dbx leaves off the "e" and
+reports only "abcd" since dbx knows that c is supposed to be an array of
+size 4.  dbx will also let you change the current value of variables.
+While you are at line 7, try:
+
+(dbx) assign i = 23
+(dbx) print i+j
+i+j = 26
+
+...and note that this new value for "i" persists throughout the remainder of the
+run, and is reflected in the next printf() statement.  When you are tired of
+stepping one line at a time, try:
+
+(dbx) cont
+
+...to continue without interruption.  Rather than tracing variables, you can
+have expressions evaluated at specific lines of your code:
+
+(dbx) delete 3 4
+(dbx) when at 4 { print (i > 10 && j > 10); }
+(dbx) when at 8 { print (i > 10 && j > 10); }
+(dbx) run                
+Running: a.out 
+(process id 12626)
+i > 10 && j > 10 = 0
+ab, 5, 3
+i > 10 && j > 10 = 1
+abcde, 1694498821, 100
+execution completed, exit code is 1
+(dbx) quit
+
+(NOTE: the output you see may be somewhat different than that shown above.)
+dbx reports the condition was false (0) at line 4, and true (1) at line 8.
+(Normally, such trace statements would likely be in a loop that is executed
+repeatedly.)  You can also use "print" to find out where variables are stored,
+and to evaluate complex expressions [NOTE: you may see different addresses
+when you run this, but they will probably occupy the same relative positions].
+NOTE: if you forget the semicolon before the "}", dbx gets REALLY unfriendly.
+
+(dbx) stop at 8
+(dbx) run
+...
+(dbx) print i+j
+i+j = 1694498921
+(dbx) print &i
+&i = 0xffbeeb18
+(dbx) print &c
+&c = 0xffbeeb14
+(dbx) print &j
+&j = 0xffbeeb10
+(dbx) print c[4]
+warning: subscript out of range
+c[4] = 'e'
+(dbx) print &c[4]
+warning: subscript out of range
+&c[4] = 0xffbeeb18 "e"
+(dbx) print &c[-1]
+warning: subscript out of range
+&c[-1] = 0xffbeeb13 "dabcde"
+
+Note that the addresses of the variables i, c, and j help explain the strange
+and unexpected changes to i and j in this program:
+     _______________ _______________ _______________
+    |_0_|_0_|_0_|_d_|_a_|_b_|_c_|_d_|_e_|_0_|_0_|_5_|
+     ^               ^               ^
+     |               |               |
+     |               |              i starts here at address 0xffbeeb18
+     |              c starts here at address 0xffbeeb14
+    j starts here at address 0xffbeeb10
+
+QUIZ: how does the following "bc" calculation relate to this assignment?
+% bc
+101*2^24 + 5
+1694498821
+
+[NOTE: Other compilers might have swapped the positions of i and j, in which
+case we would have seen a different set of (equally bizarre) wrong answers.]
+
+To 'fix' this program, you could either (1) write a shorter string that
+doesn't go beyond the end of the array, or (2) declare the array to be
+large enough to hold the string we want; 6 slots would be needed in this
+case (why is 5 slots insufficient?).  And of course, we should never use
+negative subscripts!
+
+We only had one function in this simple program, but you can fine-tune dbx
+for larger programs with many functions and several source files.  You might
+want to run the program at full-speed until you reach some subroutine that
+you are having trouble with.  Use:
+(dbx) stop in some-subroutine
+...and then step through that routine or set up a trace or other stop points.
+
+The dbx "run" command accepts the shell redirection symbols ("<" and ">").
+run < infile > outfile
+creates a file called outfile, so make sure you're not asking it to write
+over something important!  If the file infile does not exist, dbx will read
+from the keyboard, so this program would simply wait until you entered some
+characters.  Obviously, it's not a good idea to try to enter both input and
+dbx commands from the keyboard, so using "< infile" is a good idea in
+programs that accept input.  Also, using "> outfile" will prevent the normal
+output from your printf() statements from interfering with the output of dbx.
+
+A few miscellaneous dbx commands:
+(dbx) where
+=>[1] main(), line 8 in "errors.c"
+(dbx) whereis j
+variable:       `a.out`errors.c`main`j
+(dbx) whereis printf
+function:       `libc.so.1`printf
+
+"where" tells you what file you are in (cc may have compiled and linked
+several .c files together), what function you are in (there may be several
+functions in a file), and what line of that function you are about to execute.
+"whereis" will tell you about an object.  In this example, j is defined in
+the file errors.c as an automatic variable, and printf is a function that
+is not in errors.c (but is instead located in the shared-object module
+called /usr/lib/libc.so.1).
+
+"stop" has several variants (not all of which are shown above), such as:
+stop change j         (suspend execution if variable j is changed)
+stop at 8             (suspend execution at line 8)
+stop in function-name (suspend execution when function-name is called)
+
+"next" is similar to "step"; "next" immediately executes up to the next
+line of source code, whereas "step" will instead walk you through all the
+functions that are called on the way to that next line of source code.
+
+At present, gcc and dbx don't get along very well on rohan, so compile with
+cc, not gcc (gdb is the debugger designed to work with gcc, but Wang doesn't
+cover gdb).  Also, the compiler options -g and -O should not be used at the
+same time: if you optimize the code, serious rearrangements may take place,
+so dbx can no longer match up source line numbers with machine instructions.
+
+Some comments about lint:
+
+rohan% lint errors.c
+(7) warning: array subscript cannot be negative: -1
+(9) warning: Function has no return statement : main
+implicitly declared to return int
+    (5) printf          (6) strcat      
+function falls off bottom without returning value
+    (9) main        
+function returns value which is always ignored
+    printf              strcat
+
+The version of lint on some other hosts may give more helpful comments:
+
+mordor% lint errors.c 
+errors.c(3): no automatic aggregate initialization
+errors.c(3): illegal lhs of assignment operator
+errors.c(9): warning: main() returns random value to invocation environment
+strcat value declared inconsistently    llib-lc(668)  ::  errors.c(6)
+printf returns value which is always ignored
+strcat returns value which is always ignored
+
+The line 9 error complains that we forgot to specify a return() value.
+The line 3 errors are explained in the source code of errors.c:
+char c[4] = "ab";  /* proper syntax is:   char c[4] = {'a', 'b', '\0'}; */
+The strcat() function is specified to return a pointer to a character.
+We neglected to #include the proper .h file to specify this, so our program
+uses the default assumption that every external function returns an integer.
+Here, lint complains that the calling program (in errors.c) and the called
+program (strcat() in the llib-lc library) do not agree on what type of value
+strcat() is going to return.  printf() returns a value (the number of
+characters printed) which we just discard rather than assigning it somewhere,
+so lint warns that we ignore it.  To inform the compiler that we explicitly
+want to ignore the value returned, we would cast it to void, e.g.,
+   (void) printf("%s, %d, %d\n", c, i, j);
+
+The following situation is NOT likely to appear in either half of this
+assignment, but you might run into something similar when debugging your
+own code (in Program 3, for example...).
+You might tell dbx something like 'run p3 -option arg1 arg2'
+...and it may die a horrible death, e.g.,
+
+signal SEGV (no mapping at the fault address) in _getorientation at 0xff30e610
+0xff30e610: _getorientation       :     ldub    [%o0 + 0xe], %g1
+
+Unfortunately, "_getorientation" is not the name of a function in your program
+(variables and functions that begin with '_' are ones supplied by the system).
+dbx will confirm (via 'which _getorientation') that it is really:
+`libc.so.1`_getorientation
+...which means that it's a function in the libc library, probably called
+by some other function in libc.  To find the offending line in your program,
+you would have to use the 'up' command until you found a routine whose name
+you recognized.  The conversation might go something like this:
+
+(dbx) up        
+0xff30e82c: _set_orientation_byte+0x0004:       call    _getorientation
+(dbx) up
+0xff30a640: fgets+0x0050:       call    _set_orientation_byte
+(dbx) up
+0x0001161c: main+0x029c:        call    fgets [PLT]
+(dbx)
+
+...at which point you'd know that it was fgets that killed your program.
+
+FOR CS570 PEOPLE WHO ARE READING THIS FILE FOR TUTORIAL PURPOSES, THIS IS
+A GOOD PLACE TO STOP!
+
+Once you are familiar with dbx, get the suite of files that comprise your
+principle debugging task for this assignment.
+You can untar everything at once into ~/As8 from ~masc0000/a8.tar with:
+% cd ~
+% tar -xvf ~masc0000/a8.tar
+This should create the following five files directly under ~/As8:
+Makefile  main.c    negate.c  nfact.c   setg.c
+(If the directory "./As8" did not already exist, tar would create it for you;
+if you did not untar things from your home directory, you may instead have the
+files under something like ~/As8/As8 instead.  If so, make sure you fix this.)
+
+Now enter the newly-created directory, and prepare the files for editing:
+% cd ~/As8
+% ls
+% rcs -l *.c
+This last command 'locks' the various .c files, so that you will be allowed
+to 'check in' your changes to the rcs respositories (under the ~/As8/RCS
+directory) later on.
+
+The Makefile will help you compile this into an executable (called a8);
+the Makefile contains other useful targets, such as "lint" and "clean".
+% make && a8
+will make the executable, and then run it (but only if make did not fail).
+Makefiles are covered in Chapter 13 of Wang.
+
+There are many small errors in these .c files, and you need to use dbx and lint
+to help you debug them.  Your goal is to make (small) changes, AND get it to
+give accurate answers.  It is NOT sufficient to just get it running; you will
+find that there are many surprising values printed.  If you determine that
+it ought to print a zero and -13 gets printed, you need to fix something.
+The printf() statements themselves give some hints as to what the answers ought
+to look like (although the program does not do anything of any use to anyone).
+
+You should NOT make large changes; a few characters will be sufficient, on
+various lines and in various files.  Hence, DO NOT delete lines, change variable
+names, or otherwise make big changes.  The main types of errors to look for are:
+
+incorrect declarations (perhaps "register int x" should be "external float x",
+                        or perhaps you need to add a declaration)
+
+incorrect constants (perhaps -13 should be +7)
+
+incorrect operators (perhaps % should be /, or - should instead be +)
+
+Running lint will probably help you fix some things right away, but you will
+have to use dbx to find all the problems.  It may be a better learning
+experience to just cure the segmentation fault and infinite loop problems first
+with dbx, and worry about declarations later -- it can also be entertaining to
+see the strange values that get printed.  Expect to find about 10 small errors.
+
+When you are finished, you should have ZERO complaints from lint, and BOTH cc
+and gcc should be able to compile the program with ZERO warnings and errors.
+% make clean
+% make "CC=gcc"
+...will remove the .o files and re-make everything using gcc instead of cc.
+% make lint
+...will run lint on all your .c files (and the relevant libraries).
+
+Since we don't usually care what value printf() returns, most programs would
+generate the following complaint from lint:
+
+printf returns value which is always ignored
+
+In main.c, I have therefore used
+(void)printf(whatever...)
+in place of
+printf(whatever...)
+in order to make lint shut up.  (Casting the return value of printf to void
+tells lint that we are explicitly discarding the value returned.)  These
+extra (void) tokens are there for this reason only, and do not contribute to
+any of the errors that are present in the file, so you should leave them alone.
+
+This assignment is also meant to familiarize you with rcs, the Revision Control
+System.  You have no doubt noticed that, while developing a program, you often
+make changes that turn out to be a total disaster, and then have to painfully
+restore your code to the last version.  Your alternative may have been to keep
+various copies of the versions of your code, and dream up filenames for each
+version.
+
+rcs can be used to track all your versions for you, providing you with ways to
+annotate the different revisions, and conveniently determine the differences
+between the versions.  With rcs, you can recover previous versions effortlessly.
+
+Another advantage to rcs may be hard to appreciate now (since you are not
+working in teams on a common set of files).  In real life, it often occurs
+that several people may modify the same section of code in the same day.
+If they do not coordinate their efforts, the changes made by one person may not
+be incorporated into the version on which another person works, and incompatible
+versions (or worse) can result.  rcs ensures that only one person at a time
+can 'lock' a file for modifications, preventing this sort of chaos.  It may
+seem pointless for you to have to lock a file when you are the only user
+accessing it, but try to keep the 'big picture' in mind.
+
+rcsintro should tell you all you want to know about rcs, but a complete set
+of man pages would include ci, co, ident, merge, rcs, rcsdiff, rcsmerge, rlog,
+and rcsfile.  Reading the man page for rcsintro is part of this assignment.
+You can print the man page from rohan with:
+
+% nroff -man /usr/local/man/man1/rcsintro.1 | lpr
+(By the way, when you do 'man rcsintro', what actually happens is:
+  nroff -man /usr/local/man/man1/rcsintro.1 | more)
+
+% tkman rcsintro
+gives you an extraordinarily nice graphical interface to the man pages with
+hypertext links to related man pages.
+
+Note that the files are in man1 (man-one) on rohan, but in manl (man-el) on some
+systems, and that these particular files are under /usr/local/man, not /usr/man.
+
+It may be helpful to think of RCS/Makefile,v as a "file cabinet".  You
+check out a document (with co, which gives you a COPY of what is already there),
+perhaps modify it (with vi), and then put this new document into the file
+cabinet (with ci), beside the old one (which is still there, unchanged).
+When you put a document into the file cabinet, it disappears off your "desk",
+and you're not going to see it again until you check it out again.
+
+CAUTION: if you wait until the last minute to mess with rcs, and then
+don't re-check your results, you are likely to completely screw up this
+assignment.  If you check in a file and forget to check it back out again,
+you're likely to get zero points, since the source code won't be found.
+MAKE SURE the .c files (and the Makefile) are present under your ~/As8
+directory before the autograder checks your account!
+
+The four .c file repositories (e.g., ~/As8/RCS/main.c,v) were already
+set up for you.  Even though we won't be changing the errors.c source,
+create an errors.c,v repository for it:
+% ci ~/As8/errors.c
+(For 'new' repositories, rather than asking for a log message,
+the 'ci' command will ask for a general description of the file.)
+Remember that 'ci' will make ~/As8/errors.c 'disappear'
+(and cause ~/As8/RCS/errors.c,v to be created).  To get errors.c back, now do:
+% co ~/As8/errors.c
+(This will create an 'unlocked' read-only version of errors.c --
+to edit it, you'd need to lock it with 'rcs -l' again, or combine
+the two with 'co -l ~/As8/errors.c' to get a writable version.)
+When you finish, make sure you have all FIVE .c files under ~/As8:
+errors.c  main.c    negate.c  nfact.c   setg.c
+
+If you have not yet worked in industry as a programmer, this assignment is a
+small taste of real life.  Writing small programs "from scratch", as you have
+been doing during your college classes, is not very common; more likely, you
+would be in charge of maintaining or debugging large programs written by someone
+else (even more likely, written by a team and then modified countless times
+by lots of other people).  The original program may have been poorly documented,
+which means that the people who modify the program often invent bizarre kludges
+to get something that seems to work -- or at least work on the current input.
+As the program grows, it tends to get increasingly fragile, and unexpected
+behavior becomes common, and you finally are confronted with a mess such as
+what you are dealing with in this assignment -- only a thousand times larger.
+Writing well-structured and well-documented programs is a highly marketable
+skill, since productivity is clearly enhanced when you are working from
+intelligible source code.
+
+Summary of As8:
+0) create ~/As8 and copy ~masc0000/errors.c to ~/As8
+1) work with errors.c to learn about dbx and lint
+2) unpack ~masc0000/a8.tar
+3) use the 'rcs -l' command to 'lock' the source files
+3) use "make", "make lint", and dbx to fix main.c, negate.c, nfact.c and setg.c
+4) make sure there are no compiler or lint warnings, and that a8 both runs
+   without crashing AND gives answers that make sense; part of your grade will
+   be based on whether you can recognize "bad" output.
+5) use rcs to check in (and check back out!) your 'improved' versions of
+   the .c files.  Create a repository for your errors.c as well.
+   Use the log to document your changes.
+6) Final sanity check: MAKE SURE all the .c files are checked out!
+
+The file ~masc0000/ddd.notes contains some hints about using ddd, the
+graphical front end for various debuggers.  You are NOT required to
+learn ddd (there will be NO questions about ddd on the final), but
+you may well find that ddd is much more pleasant to use than the
+simple command-line interface described in this assignment.
+
+TO REITERATE: THIS IS ***NOT*** A CS570 ASSIGNMENT!

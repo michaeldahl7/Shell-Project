@@ -1,4 +1,19 @@
+/*Synopsis  -
+
+Michael Dahl
+John Carroll
+CS 570
+Due: 2/10/2016
+ */
 #include "p2.h" /* Not sure what else ill need*/
+#include <unistd.h>
+#include <stdlib.h>
+#include "CHK.h"
+#include <time.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <sys/types.h>  /* added for wait call */
+#include <sys/wait.h>   /* added for wait call */
 //#define statements /*such as flags , */
 //declarations;
 int c;
@@ -39,9 +54,11 @@ int main()
 			}
 		}
 		//This is where i handle if ampersand true on not.
-		//
 		If approprioate, wait for child to complete;
-		Else print the childs pid, and in this case, the child should redirect its stdin to /dev/null*/
+		Else print the childs pid, and in this case, the child should redirect its stdin to /dev/null  */
+		if(ampersandFound == true){
+
+		}
 	}
 	//killpg(getpid(), SIGTERM); //Terminate any children that are still running. WARNING: bad args to killpg can kill auto grader,
 
